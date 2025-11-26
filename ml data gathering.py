@@ -6,7 +6,7 @@ import os
 import asyncio
 
 directory = os.path.dirname(os.path.abspath(__file__))
-csv_file_path = os.path.join(directory, '8_hour_data.csv')
+csv_file_path = os.path.join(directory, '3_hour_data.csv')
 
 # → START ADDITION
 print(f"Output CSV will be written to:\n    {csv_file_path}")
@@ -29,8 +29,8 @@ dataCount = 5000  # max per request
 data_list = []
 
 # Adjust the start date for the desired range
-start_date = datetime.datetime.now() - datetime.timedelta(days=15)
-end_date = start_date + datetime.timedelta(hours=8)
+start_date = datetime.datetime.now() - datetime.timedelta(days=17)
+end_date = start_date + datetime.timedelta(hours=3)
 increment = datetime.timedelta(days=1)  # Increment range
 
 async def fetch_data(symbol, start, end, granularity, count):

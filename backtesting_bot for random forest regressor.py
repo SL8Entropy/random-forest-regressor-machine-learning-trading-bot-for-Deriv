@@ -91,7 +91,7 @@ startAmount = 10
 Lowamount = 48
 Highamount = 52
 symbol = "R_100"
-barrier = 0.01
+barrier = 0.0001
 interval = 60
 periods = [14, 7, 21]
 maxFailAmount = 100
@@ -145,9 +145,9 @@ async def trade(symbol, interval, direction, current_data_index, full_data_df, l
 
     if outcome_price is not None:
         if direction == "CALL":
-            status = 'won' if outcome_price > (entry_price + barrier) else 'lost'
+            status = 'won' if outcome_price > (entry_price) else 'lost'
         elif direction == "PUT":
-            status = 'won' if outcome_price < (entry_price - barrier) else 'lost'
+            status = 'won' if outcome_price < (entry_price) else 'lost'
 
     if status == 'won':
         print("Simulated Trade won!")
@@ -241,10 +241,10 @@ def enhanced_triple_rebound_strategy(rsi_values, stoch_k, stoch_d, data, log_tim
     print(f"Predicted price after 1 minute = {Y_pred:.2f}")
     log_event("prediction", {"price": price, "rsi_7": rsi_7, "rsi_14": rsi_14, "rsi_21": rsi_21, "stoch_k": stoch_k, "stoch_d": stoch_d, "predicted_price": Y_pred}, log_time)
     decision = None
-    if Y_pred > price and rsi_7 < Lowamount and rsi_14 < Lowamount and rsi_21 < Lowamount + 5 and stoch_k < Lowamount and stoch_d < Lowamount:
+    if Y_pred > price+price*barrier and rsi_7 < Lowamount and rsi_14 < Lowamount and rsi_21 < Lowamount + 5 and stoch_k < Lowamount and stoch_d < Lowamount:
         print("Decision: Betting UP (CALL)")
         decision = "CALL"
-    elif Y_pred < price and rsi_7 > Highamount and rsi_14 > Highamount and rsi_21 > Highamount - 5 and stoch_k > Highamount and stoch_d > Highamount:
+    elif Y_pred < price-price*barrier and rsi_7 > Highamount and rsi_14 > Highamount and rsi_21 > Highamount - 5 and stoch_k > Highamount and stoch_d > Highamount:
         print("Decision: Betting DOWN (PUT)")
         decision = "PUT"
     else:

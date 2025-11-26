@@ -1,5 +1,5 @@
 %% ------------------------------------------------------------------------
-%  Real-Time Trading Analysis
+%  Real‑Time Trading Analysis
 %  – Cumulative profit plot
 %  – Prediction error & market price plot
 %  – RMSE, MAE, Directional Accuracy, and Win Rate metrics
@@ -9,7 +9,7 @@ clc; clearvars; close all;
 % —————————————————————————
 % User settings
 % —————————————————————————
-file       = 'higherBarrierTrial1'; %<-- Use your latest log file name
+file       = '3_hour'; %<-- Use your latest log file name
 inputName  = [file, '.jsonl'];
 outProfit  = [file, '_cumulative_profit.png'];
 outError   = [file, '_prediction_error.png'];
@@ -33,9 +33,9 @@ predTimes        = datetime.empty(0,1);
 predictedPrice   = [];
 spotPrice        = [];
 
-% --- NEW: Storage for traded predictions ---
-trades = struct('time',{}, 'predictedDirection',{}, 'outcome',{});
-lastPredictedDirection = 'none'; % Store the most recent prediction
+% --- NEW: Initialize trade counters ---
+totalTrades = 0;
+winningTrades = 0;
 
 % —————————————————————————
 % Read & classify each line
@@ -52,48 +52,32 @@ while ~feof(fid)
                 lastBalance         = initialBalance;
                 timestamps(end+1,1) = t;
                 cumulativeProfit(end+1,1) = 0;
-
             case 'post_trade_balance'
                 if ~isnan(initialBalance)
+                    % --- NEW: Count trades and wins ---
+                    totalTrades = totalTrades + 1;
                     profit = E.balance - lastBalance;
+                    if profit > 0
+                        winningTrades = winningTrades + 1;
+                    end
+                    
                     lastBalance = E.balance;
                     timestamps(end+1,1)       = t;
                     cumulativeProfit(end+1,1) = cumulativeProfit(end,1) + profit;
                 end
-
-            % --- MODIFIED: Capture prediction data for all points ---
             case 'prediction'
                 predTimes(end+1,1)      = t;
-                % Use predicted_direction if available, otherwise fall back to price difference
-                if isfield(E, 'predicted_direction')
-                    lastPredictedDirection = E.predicted_direction;
-                else
-                    if E.predicted_price > E.price
-                        lastPredictedDirection = 'CALL';
-                    else
-                        lastPredictedDirection = 'PUT';
-                    end
-                end
                 predictedPrice(end+1,1) = E.predicted_price;
                 spotPrice(end+1,1)      = E.price;
-
-            % --- NEW: Link the trade result to the last prediction ---
-            case 'trade_result'
-                if ~strcmpi(lastPredictedDirection, 'none')
-                    tradeIdx = length(trades) + 1;
-                    trades(tradeIdx).time = t;
-                    trades(tradeIdx).predictedDirection = lastPredictedDirection;
-                    trades(tradeIdx).outcome = E.status;
-                end
         end
-    catch ME
-        % fprintf('Skipping malformed line: %s\n', ME.message);
+    catch
+        % skip malformed lines
     end
 end
 fclose(fid);
 
 % —————————————————————————
-% Sort chronologically & compute errors for plotting
+% Sort chronologically & compute errors
 % —————————————————————————
 [predTimes, idx] = sort(predTimes);
 predictedPrice   = predictedPrice(idx);
@@ -113,12 +97,13 @@ for k = 1:n
 end
 
 % —————————————————————————
-% Filter to valid data for plotting
+% Filter to valid data
 % —————————————————————————
 valid = ~isnan(actualPrice1min);
 predTimes_valid       = predTimes(valid);
 predictedPrice_valid  = predictedPrice(valid);
 actualPrice1min_valid = actualPrice1min(valid);
+spotPrice_valid       = spotPrice(valid);
 errors_valid          = errors(valid);
 
 % —————————————————————————
@@ -132,6 +117,7 @@ if ~isempty(timestamps) && ~isempty(cumulativeProfit)
     ax1.FontSize  = 14; ax1.LineWidth = 1;
     xlabel(ax1,'Time','FontSize',16);
     ylabel(ax1,'Cumulative Profit (USD)','FontSize',16);
+    title('Cumulative Trading Profit Over Time', 'FontSize', 18);
     ax1.Position = [0.08 0.15 0.90 0.78];
     xtickformat(ax1,'HH:mm');
     ax1.XAxis.TickLabelRotation = 15;
@@ -142,9 +128,21 @@ else
 end
 
 % —————————————————————————
-% Figure 2: Prediction Error (for all predictions)
+% Figure 2: Prediction Error & Metrics
 % —————————————————————————
 if ~isempty(predTimes_valid)
+    % Calculate Metrics
+    predicted_move = sign(predictedPrice_valid - spotPrice_valid);
+    actual_move    = sign(actualPrice1min_valid - spotPrice_valid);
+    predicted_move(predicted_move == 0) = -2;
+    correct_directions = sum(predicted_move == actual_move);
+    total_valid_predictions = numel(predicted_move);
+    directional_accuracy = 100 * correct_directions / total_valid_predictions;
+    diffs = predictedPrice_valid - actualPrice1min_valid;
+    rmse = sqrt(mean(diffs.^2));
+    mae  = mean(abs(diffs));
+
+    % Create Plot
     fig2 = figure('Color','w','Units','pixels','Position',[200 200 1200 550]);
     ax2 = axes(fig2);
     yyaxis(ax2,'left');
@@ -181,45 +179,23 @@ end
 % Print final metrics to console
 % —————————————————————————
 fprintf('\n--- Performance Metrics ---\n');
-
-totalTrades = length(trades);
-winningTrades = 0;
-correctlyPredictedTrades = 0;
-
+% --- NEW: Calculate and print win rate ---
 if totalTrades > 0
-    for i = 1:totalTrades
-        isWon = strcmpi(trades(i).outcome, 'won');
-        if isWon
-            winningTrades = winningTrades + 1;
-        end
-        
-        % Check if the prediction matched the outcome
-        predictedUp = strcmpi(trades(i).predictedDirection, 'CALL') || strcmpi(trades(i).predictedDirection, 'Up');
-        if (predictedUp && isWon) || (~predictedUp && isWon)
-             correctlyPredictedTrades = correctlyPredictedTrades + 1;
-        end
-    end
     winRate = 100 * winningTrades / totalTrades;
-    directionalAccuracy = 100 * correctlyPredictedTrades / totalTrades;
 else
     winRate = 0;
-    directionalAccuracy = 0;
 end
-
-fprintf('Total Trades Executed:        %d\n', totalTrades);
+fprintf('Total Trades:                 %d\n', totalTrades);
 fprintf('Winning Trades:               %d\n', winningTrades);
 fprintf('Win Rate:                     %.2f%%\n', winRate);
-fprintf('Directional Accuracy (Trades): %.2f%%\n', directionalAccuracy);
 fprintf('---------------------------\n');
 
 if ~isempty(predTimes_valid)
-    diffs = predictedPrice_valid - actualPrice1min_valid;
-    rmse = sqrt(mean(diffs.^2));
-    mae  = mean(abs(diffs));
     fprintf('Mean Absolute Error (MAE):      $%.4f\n', mae);
     fprintf('Root Mean Square Error (RMSE):  $%.4f\n', rmse);
+    fprintf('Directional Accuracy:           %.2f%%\n', directional_accuracy);
     fprintf('---------------------------\n');
 else
-    fprintf('Model prediction metrics could not be calculated (log file < 1 minute).\n');
+    fprintf('Prediction metrics could not be calculated (log file < 1 minute).\n');
     fprintf('---------------------------\n');
 end
