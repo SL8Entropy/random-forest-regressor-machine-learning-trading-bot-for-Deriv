@@ -94,8 +94,10 @@ else:
     print("Model trained and saved to file.")
     log_event("model_trained", {"model_path": model_file_path})
 
-app_id = 63226
-app_token = "AP3ri2UNkUqqoCf"
+
+#insert your app id and app token from deriv here
+app_id = ""
+app_token = ""
 
 startAmount = 10
 Lowamount = 48  # for rsi and stochastic indicators
